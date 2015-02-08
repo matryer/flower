@@ -173,3 +173,32 @@ func TestErrs(t *testing.T) {
 	is.Equal(err, job.Err)
 
 }
+
+func TestAll(t *testing.T) {
+	is := is.New(t)
+
+	// make a manager
+	manager := flower.New()
+	is.OK(manager)
+
+	manager.On("event", func(j *flower.Job) {
+		for {
+			if j.ShouldStop() {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	})
+
+	job1 := manager.New(1, "event")
+	job2 := manager.New(2, "event")
+	job3 := manager.New(3, "event")
+
+	jobs := manager.All()
+	is.Equal(len(jobs), 3)
+
+	job1.Abort()
+	job2.Abort()
+	job3.Abort()
+
+}

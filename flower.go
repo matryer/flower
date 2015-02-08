@@ -57,6 +57,19 @@ func (m *Manager) New(data interface{}, path ...string) *Job {
 	return j
 }
 
+// All gets all active jobs.
+func (m *Manager) All() []*Job {
+	jobs := make([]*Job, len(m.jobs))
+	i := 0
+	m.lock.RLock()
+	for _, job := range m.jobs {
+		jobs[i] = job
+		i++
+	}
+	m.lock.RUnlock()
+	return jobs
+}
+
 // Get gets a job by ID.
 func (m *Manager) Get(id string) (*Job, bool) {
 	m.lock.RLock()
