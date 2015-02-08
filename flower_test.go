@@ -24,8 +24,7 @@ func TestSimple(t *testing.T) {
 
 	// trigger it with some data
 	data := map[string]interface{}{"data": true}
-	job, err := manager.New(data, "event")
-	is.NoErr(err)
+	job := manager.New(data, "event")
 	is.OK(job)
 	is.OK(job.ID())
 
@@ -56,9 +55,8 @@ func TestPath(t *testing.T) {
 	})
 
 	data := map[string]interface{}{"data": true}
-	job, err := manager.New(data, "one", "two", "three")
+	job := manager.New(data, "one", "two", "three")
 
-	is.NoErr(err)
 	is.OK(job)
 
 	job.Wait()
@@ -70,7 +68,6 @@ func TestPath(t *testing.T) {
 }
 
 func TestAbort(t *testing.T) {
-
 	is := is.New(t)
 
 	// make a manager
@@ -91,8 +88,7 @@ func TestAbort(t *testing.T) {
 
 	// trigger it with some data
 	data := map[string]interface{}{"data": true}
-	job, err := manager.New(data, "event")
-	is.NoErr(err)
+	job := manager.New(data, "event")
 	is.OK(job)
 	is.OK(job.ID())
 
@@ -105,6 +101,51 @@ func TestAbort(t *testing.T) {
 	// wait for the job to finish
 	job.Wait()
 	is.Equal(10, len(ticks))
+
+}
+
+func TestAbortByID(t *testing.T) {
+	is := is.New(t)
+
+	// make a manager
+	manager := flower.New()
+	is.OK(manager)
+
+	// add a handler
+	var ticks []*flower.Job
+	manager.On("event", func(j *flower.Job) {
+		for {
+			ticks = append(ticks, j)
+			time.Sleep(100 * time.Millisecond)
+			if j.ShouldStop() {
+				break
+			}
+		}
+	})
+
+	// trigger it with some data
+	data := map[string]interface{}{"data": true}
+	job := manager.New(data, "event")
+	is.OK(job)
+	is.OK(job.ID())
+
+	// look-up the job
+	lookedupJob, ok := manager.Get(job.ID())
+	is.Equal(true, ok)
+	is.Equal(lookedupJob, job)
+
+	// tell the job to stop in 100 milliseconds
+	go func() {
+		time.Sleep(1000 * time.Millisecond)
+		lookedupJob.Abort()
+	}()
+
+	// wait for the job to finish
+	job.Wait()
+	is.Equal(10, len(ticks))
+
+	_, ok = manager.Get(job.ID())
+	is.Equal(false, ok)
 
 }
 
@@ -123,8 +164,7 @@ func TestErrs(t *testing.T) {
 
 	// trigger it with some data
 	data := map[string]interface{}{"data": true}
-	job, err := manager.New(data, "event")
-	is.NoErr(err)
+	job := manager.New(data, "event")
 	is.OK(job)
 	is.OK(job.ID())
 

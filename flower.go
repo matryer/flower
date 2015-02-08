@@ -4,30 +4,41 @@ import (
 	"sync"
 )
 
-const defaultIDLen = 32
+const idlen = 32
 
+// Manager keeps track of job handlers and jobs.
 type Manager struct {
-	IDLen int
-	lock  sync.RWMutex
-	ons   map[string][]func(j *Job)
-	jobs  map[*Job]struct{}
+	lock sync.RWMutex
+	ons  map[string][]func(j *Job)
+	jobs map[string]*Job
 }
 
+// New makes a new Manager.
+func New() *Manager {
+	return &Manager{
+		ons:  make(map[string][]func(j *Job)),
+		jobs: make(map[string]*Job),
+	}
+}
+
+// On adds an event handler.
 func (m *Manager) On(event string, handler func(j *Job)) {
 	m.lock.Lock()
 	m.ons[event] = append(m.ons[event], handler)
 	m.lock.Unlock()
 }
-func (m *Manager) New(data interface{}, path ...string) (*Job, error) {
 
+// New makes a new job.
+func (m *Manager) New(data interface{}, path ...string) *Job {
 	j := &Job{
 		Data:     data,
-		id:       randomKey(m.IDLen),
+		id:       randomKey(idlen),
 		stopChan: make(chan struct{}),
 	}
-
+	m.lock.Lock()
+	m.jobs[j.id] = j
+	m.lock.Unlock()
 	go func(job *Job) {
-
 		for _, event := range path {
 			m.lock.RLock()
 			handlers := m.ons[event]
@@ -36,22 +47,26 @@ func (m *Manager) New(data interface{}, path ...string) (*Job, error) {
 				handler(job)
 			}
 		}
-
 		// job is finished
 		job.setFinished()
-
+		// remove it
+		m.lock.Lock()
+		delete(m.jobs, job.id)
+		m.lock.Unlock()
 	}(j)
-
-	return j, nil
+	return j
 }
 
-func New() *Manager {
-	return &Manager{
-		IDLen: defaultIDLen,
-		ons:   make(map[string][]func(j *Job)),
-	}
+// Get gets a job by ID.
+func (m *Manager) Get(id string) (*Job, bool) {
+	m.lock.RLock()
+	j, ok := m.jobs[id]
+	m.lock.RUnlock()
+	return j, ok
 }
 
+// Job is a single job that will flow through the
+// system.
 type Job struct {
 	Data       interface{}
 	Err        error
@@ -62,6 +77,7 @@ type Job struct {
 	shouldStop bool
 }
 
+// setFinished marks the job as finished.
 func (j *Job) setFinished() {
 	j.lock.Lock()
 	j.finished = true
@@ -69,6 +85,8 @@ func (j *Job) setFinished() {
 	close(j.stopChan)
 }
 
+// ShouldStop gets whether the job should stop running
+// or not.
 func (j *Job) ShouldStop() bool {
 	j.lock.RLock()
 	s := j.shouldStop
@@ -76,16 +94,21 @@ func (j *Job) ShouldStop() bool {
 	return s
 }
 
+// Abort causes the job to stop. Calls to ShouldStop will
+// return true after Abort is called and handlers should stop
+// running.
 func (j *Job) Abort() {
 	j.lock.Lock()
 	j.shouldStop = true
 	j.lock.Unlock()
 }
 
+// ID gets the unique ID for the job.
 func (j *Job) ID() string {
 	return j.id
 }
 
+// Wait blocks until the job has finished.
 func (j *Job) Wait() {
 	<-j.stopChan
 }
