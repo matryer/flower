@@ -2,6 +2,7 @@ package flower
 
 import (
 	"sync"
+	"time"
 )
 
 const idlen = 32
@@ -11,6 +12,11 @@ type Manager struct {
 	lock sync.RWMutex
 	ons  map[string][]func(j *Job)
 	jobs map[string]*Job
+
+	// PostJobWait is the amount of time to wait before
+	// cleaning up after a job once it has finished.
+	// By default, jobs are cleaned immediately.
+	PostJobWait time.Duration
 }
 
 // New makes a new Manager.
@@ -49,10 +55,15 @@ func (m *Manager) New(data interface{}, path ...string) *Job {
 		}
 		// job is finished
 		job.setFinished()
+
+		// wait a while before removing the job
+		time.Sleep(m.PostJobWait)
+
 		// remove it
 		m.lock.Lock()
 		delete(m.jobs, job.id)
 		m.lock.Unlock()
+
 	}(j)
 	return j
 }
