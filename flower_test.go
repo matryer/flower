@@ -255,3 +255,12 @@ func TestAfter(t *testing.T) {
 	is.Equal(len(jobs), 0)
 
 }
+
+func TestStateStrings(t *testing.T) {
+	is := is.New(t)
+
+	is.Equal(flower.JobScheduled.String(), "scheduled")
+	is.Equal(flower.JobRunning.String(), "running")
+	is.Equal(flower.JobFinished.String(), "finished")
+
+}

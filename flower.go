@@ -110,12 +110,24 @@ type JobState int8
 const (
 	_ JobState = iota
 	// JobScheduled means the job has not yet started.
+	// Not used since jobs start running right away.
 	JobScheduled
 	// JobRunning means the job is running.
 	JobRunning
 	// JobFinished means the job has finished.
 	JobFinished
 )
+
+var jobStateStrs = map[JobState]string{
+	JobScheduled: "scheduled",
+	JobRunning:   "running",
+	JobFinished:  "finished",
+}
+
+// String gets the JobState as a human readable string.
+func (s JobState) String() string {
+	return jobStateStrs[s]
+}
 
 // setFinished marks the job as finished.
 func (j *Job) setFinished() {
