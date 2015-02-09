@@ -40,11 +40,13 @@ func (m *Manager) New(data interface{}, path ...string) *Job {
 		Data:     data,
 		id:       randomKey(idlen),
 		stopChan: make(chan struct{}),
+		state:    JobRunning,
 	}
 	m.lock.Lock()
 	m.jobs[j.id] = j
 	m.lock.Unlock()
 	go func(job *Job) {
+
 		for _, event := range path {
 			m.lock.RLock()
 			handlers := m.ons[event]
@@ -53,6 +55,7 @@ func (m *Manager) New(data interface{}, path ...string) *Job {
 				handler(job)
 			}
 		}
+
 		// job is finished
 		job.setFinished()
 
@@ -97,16 +100,37 @@ type Job struct {
 	lock       sync.RWMutex
 	id         string
 	stopChan   chan struct{}
-	finished   bool
+	state      JobState
 	shouldStop bool
 }
+
+// JobState represents the state of a Job.
+type JobState int8
+
+const (
+	_ JobState = iota
+	// JobScheduled means the job has not yet started.
+	JobScheduled
+	// JobRunning means the job is running.
+	JobRunning
+	// JobFinished means the job has finished.
+	JobFinished
+)
 
 // setFinished marks the job as finished.
 func (j *Job) setFinished() {
 	j.lock.Lock()
-	j.finished = true
+	j.state = JobFinished
 	j.lock.Unlock()
 	close(j.stopChan)
+}
+
+// State gets the current state of the job.
+func (j *Job) State() JobState {
+	j.lock.RLock()
+	state := j.state
+	j.lock.RUnlock()
+	return state
 }
 
 // ShouldStop gets whether the job should stop running

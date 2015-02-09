@@ -230,6 +230,10 @@ func TestAfter(t *testing.T) {
 	jobs := manager.All()
 	is.Equal(len(jobs), 3)
 
+	is.Equal(flower.JobRunning, job1.State())
+	is.Equal(flower.JobRunning, job2.State())
+	is.Equal(flower.JobRunning, job3.State())
+
 	job1.Abort()
 	job2.Abort()
 	job3.Abort()
@@ -241,6 +245,9 @@ func TestAfter(t *testing.T) {
 
 	jobs = manager.All()
 	is.Equal(len(jobs), 3) // should still be around
+	is.Equal(flower.JobFinished, job1.State())
+	is.Equal(flower.JobFinished, job2.State())
+	is.Equal(flower.JobFinished, job3.State())
 
 	time.Sleep(550 * time.Millisecond)
 
