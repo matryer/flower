@@ -226,6 +226,7 @@ func TestAfter(t *testing.T) {
 	job1 := manager.New(1, "event")
 	job2 := manager.New(2, "event")
 	job3 := manager.New(3, "event")
+	is.Equal(3, manager.RunningLen())
 
 	jobs := manager.All()
 	is.Equal(len(jobs), 3)
@@ -245,6 +246,7 @@ func TestAfter(t *testing.T) {
 
 	jobs = manager.All()
 	is.Equal(len(jobs), 3) // should still be around
+	is.Equal(0, manager.RunningLen())
 	is.Equal(flower.JobFinished, job1.State())
 	is.Equal(flower.JobFinished, job2.State())
 	is.Equal(flower.JobFinished, job3.State())
@@ -253,6 +255,7 @@ func TestAfter(t *testing.T) {
 
 	jobs = manager.All()
 	is.Equal(len(jobs), 0)
+	is.Equal(0, manager.RunningLen())
 
 }
 

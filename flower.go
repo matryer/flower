@@ -47,6 +47,10 @@ func (m *Manager) New(data interface{}, path ...string) *Job {
 	m.lock.Unlock()
 	go func(job *Job) {
 
+		job.lock.Lock()
+		job.started = time.Now()
+		job.lock.Unlock()
+
 		for _, event := range path {
 			m.lock.RLock()
 			handlers := m.ons[event]
@@ -69,6 +73,20 @@ func (m *Manager) New(data interface{}, path ...string) *Job {
 
 	}(j)
 	return j
+}
+
+// RunningLen gets the number of jobs that are
+// currently running.
+func (m *Manager) RunningLen() int {
+	c := 0
+	m.lock.RLock()
+	for _, job := range m.jobs {
+		if job.State() == JobRunning {
+			c++
+		}
+	}
+	m.lock.RUnlock()
+	return c
 }
 
 // All gets all active jobs.
@@ -102,6 +120,8 @@ type Job struct {
 	stopChan   chan struct{}
 	state      JobState
 	shouldStop bool
+	started    time.Time
+	finished   time.Time
 }
 
 // JobState represents the state of a Job.
@@ -133,6 +153,7 @@ func (s JobState) String() string {
 func (j *Job) setFinished() {
 	j.lock.Lock()
 	j.state = JobFinished
+	j.finished = time.Now()
 	j.lock.Unlock()
 	close(j.stopChan)
 }
@@ -171,4 +192,20 @@ func (j *Job) ID() string {
 // Wait blocks until the job has finished.
 func (j *Job) Wait() {
 	<-j.stopChan
+}
+
+// Started gets the time.Time when this Job started.
+func (j *Job) Started() time.Time {
+	j.lock.RLock()
+	s := j.started
+	j.lock.RUnlock()
+	return s
+}
+
+// Finished gets the time.Time when this Job finished.
+func (j *Job) Finished() time.Time {
+	j.lock.RLock()
+	s := j.finished
+	j.lock.RUnlock()
+	return s
 }
