@@ -3,9 +3,11 @@ package flower
 import (
 	"sync"
 	"time"
+
+	"github.com/stretchr/slog"
 )
 
-const idlen = 32
+const idlen = 16
 
 // Manager keeps track of job handlers and jobs.
 type Manager struct {
@@ -15,15 +17,20 @@ type Manager struct {
 
 	// PostJobWait is the amount of time to wait before
 	// cleaning up after a job once it has finished.
-	// By default, jobs are cleaned immediately.
+	// By default, jobs disappear immediately.
 	PostJobWait time.Duration
+
+	// Logger is the slog.Logger where log information is
+	// written to.
+	Logger slog.Logger
 }
 
 // New makes a new Manager.
 func New() *Manager {
 	return &Manager{
-		ons:  make(map[string][]func(j *Job)),
-		jobs: make(map[string]*Job),
+		ons:    make(map[string][]func(j *Job)),
+		jobs:   make(map[string]*Job),
+		Logger: slog.NilLogger,
 	}
 }
 
@@ -36,32 +43,56 @@ func (m *Manager) On(event string, handler func(j *Job)) {
 
 // New makes a new job.
 func (m *Manager) New(data interface{}, path ...string) *Job {
+	randomID := randomKey(idlen)
 	j := &Job{
 		Data:     data,
-		id:       randomKey(idlen),
+		Logger:   m.Logger.New("job(" + randomID + ")"),
+		id:       randomID,
 		stopChan: make(chan struct{}),
 		state:    JobRunning,
 	}
 	m.lock.Lock()
 	m.jobs[j.id] = j
 	m.lock.Unlock()
+	if j.Logger.Info() {
+		j.Logger.Info("new job")
+	}
 	go func(job *Job) {
 
 		job.lock.Lock()
 		job.started = time.Now()
 		job.lock.Unlock()
 
+		if j.Logger.Debug() {
+			j.Logger.Debug("started:", job.started)
+		}
+
 		for _, event := range path {
 			m.lock.RLock()
 			handlers := m.ons[event]
 			m.lock.RUnlock()
 			for _, handler := range handlers {
+				if j.Logger.Debug() {
+					j.Logger.Debug("running handler", handler)
+				}
 				handler(job)
+				if j.Logger.Debug() {
+					j.Logger.Debug("handler complete")
+				}
 			}
 		}
 
 		// job is finished
+		if j.Logger.Debug() {
+			j.Logger.Debug("finished")
+		}
 		job.setFinished()
+
+		if m.PostJobWait > 0 {
+			if j.Logger.Debug() {
+				j.Logger.Debug("waiting before cleanup:", m.PostJobWait)
+			}
+		}
 
 		// wait a while before removing the job
 		time.Sleep(m.PostJobWait)
@@ -70,6 +101,10 @@ func (m *Manager) New(data interface{}, path ...string) *Job {
 		m.lock.Lock()
 		delete(m.jobs, job.id)
 		m.lock.Unlock()
+
+		if j.Logger.Debug() {
+			j.Logger.Debug("cleaned up")
+		}
 
 	}(j)
 	return j
@@ -114,6 +149,7 @@ func (m *Manager) Get(id string) (*Job, bool) {
 // system.
 type Job struct {
 	Data       interface{}
+	Logger     slog.Logger
 	Err        error
 	lock       sync.RWMutex
 	id         string
@@ -136,12 +172,15 @@ const (
 	JobRunning
 	// JobFinished means the job has finished.
 	JobFinished
+	// JobErred means the job was aborted due to an error.
+	JobErred
 )
 
 var jobStateStrs = map[JobState]string{
 	JobScheduled: "scheduled",
 	JobRunning:   "running",
 	JobFinished:  "finished",
+	JobErred:     "error",
 }
 
 // String gets the JobState as a human readable string.
@@ -153,7 +192,13 @@ func (s JobState) String() string {
 func (j *Job) setFinished() {
 	j.lock.Lock()
 	j.state = JobFinished
+	if j.Err != nil {
+		j.state = JobErred
+	}
 	j.finished = time.Now()
+	if j.Logger.Debug() {
+		j.Logger.Debug("finished at", j.finished, "with state", j.state)
+	}
 	j.lock.Unlock()
 	close(j.stopChan)
 }

@@ -104,7 +104,7 @@ func TestAbort(t *testing.T) {
 
 }
 
-func TestAbortByID(t *testing.T) {
+func TestGetAndAbort(t *testing.T) {
 	is := is.New(t)
 
 	// make a manager
@@ -171,6 +171,7 @@ func TestErrs(t *testing.T) {
 	// wait for the job to finish
 	job.Wait()
 	is.Equal(err, job.Err)
+	is.Equal(flower.JobErred, job.State())
 
 }
 
@@ -265,5 +266,6 @@ func TestStateStrings(t *testing.T) {
 	is.Equal(flower.JobScheduled.String(), "scheduled")
 	is.Equal(flower.JobRunning.String(), "running")
 	is.Equal(flower.JobFinished.String(), "finished")
+	is.Equal(flower.JobErred.String(), "error")
 
 }
