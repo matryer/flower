@@ -1,6 +1,7 @@
 package flower
 
 import (
+	"errors"
 	"sync"
 	"time"
 )
@@ -41,6 +42,15 @@ func (m *Manager) On(event string, handler func(j *Job)) {
 
 // New makes a new job.
 func (m *Manager) New(data interface{}, path ...string) *Job {
+	if len(path) == 0 {
+		err := errors.New("missing path (job types)")
+		m.Logger.Err(err)
+		return &Job{
+			Err:   err,
+			Data:  data,
+			state: JobErred,
+		}
+	}
 	randomID := randomKey(idlen)
 	j := &Job{
 		Data:     data,
