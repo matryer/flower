@@ -3,8 +3,6 @@ package flower
 import (
 	"sync"
 	"time"
-
-	"github.com/stretchr/slog"
 )
 
 const idlen = 16
@@ -22,7 +20,7 @@ type Manager struct {
 
 	// Logger is the slog.Logger where log information is
 	// written to.
-	Logger slog.Logger
+	Logger Logger
 }
 
 // New makes a new Manager.
@@ -30,7 +28,7 @@ func New() *Manager {
 	return &Manager{
 		ons:    make(map[string][]func(j *Job)),
 		jobs:   make(map[string]*Job),
-		Logger: slog.NilLogger,
+		Logger: &nilLogger{},
 	}
 }
 
@@ -149,7 +147,7 @@ func (m *Manager) Get(id string) (*Job, bool) {
 // system.
 type Job struct {
 	Data       interface{}
-	Logger     slog.Logger
+	Logger     Logger
 	Err        error
 	lock       sync.RWMutex
 	id         string
